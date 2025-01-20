@@ -97,6 +97,23 @@ dxRender_Visual* CModelPool::Instance_Duplicate(dxRender_Visual* V)
 	return N;
 }
 
+struct instance_create_closure
+{
+	CModelPool* pool;
+	u32 type;
+};
+
+void instance_create_async(instance_create_closure* clo)
+{
+	auto result = clo->pool->Instance_Create(clo->type);
+}
+
+void instance_create_async_on_completed(instance_create_closure* clo)
+{
+	xr_delete(clo);
+	Msg("FINISHED CREATING ON ASYNC");
+}
+
 dxRender_Visual* CModelPool::Instance_Load(const char* N, BOOL allow_register)
 {
 	dxRender_Visual* V;
@@ -141,6 +158,15 @@ dxRender_Visual* CModelPool::Instance_Load(const char* N, BOOL allow_register)
 
 	// Registration
 	if (allow_register) Instance_Register(N, V);
+
+	auto clo = xr_new<instance_create_closure>();
+	clo->pool = this;
+	clo->type = H.type;
+	auto task = fastdelegate::FastDelegate0<>(clo, &instance_create_async);
+	//Device.EnqueueAsync(
+	//	fastdelegate::FastDelegate0<>(clo, &instance_create_async),
+	//	fastdelegate::FastDelegate0<>(clo, &instance_create_async_on_completed)
+	//);
 
 	return V;
 }
