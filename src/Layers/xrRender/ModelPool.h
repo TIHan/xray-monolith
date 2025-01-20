@@ -67,6 +67,8 @@ public:
 	dxRender_Visual* CreatePG(PS::CPGDef* source);
 	dxRender_Visual* Create(LPCSTR name, IReader* data = 0);
 	dxRender_Visual* CreateChild(LPCSTR name, IReader* data);
+	dxRender_Visual* CreateThreadSafe(LPCSTR name);
+
 	void Delete(dxRender_Visual* & V, BOOL bDiscard = FALSE);
 	void Discard(dxRender_Visual* & V, BOOL b_complete);
 	void DeleteInternal(dxRender_Visual* & V, BOOL bDiscard = FALSE);

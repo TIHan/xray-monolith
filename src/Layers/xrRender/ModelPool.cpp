@@ -97,23 +97,6 @@ dxRender_Visual* CModelPool::Instance_Duplicate(dxRender_Visual* V)
 	return N;
 }
 
-struct instance_create_closure
-{
-	CModelPool* pool;
-	u32 type;
-};
-
-void instance_create_async(instance_create_closure* clo)
-{
-	auto result = clo->pool->Instance_Create(clo->type);
-}
-
-void instance_create_async_on_completed(instance_create_closure* clo)
-{
-	xr_delete(clo);
-	Msg("FINISHED CREATING ON ASYNC");
-}
-
 dxRender_Visual* CModelPool::Instance_Load(const char* N, BOOL allow_register)
 {
 	dxRender_Visual* V;
@@ -158,15 +141,6 @@ dxRender_Visual* CModelPool::Instance_Load(const char* N, BOOL allow_register)
 
 	// Registration
 	if (allow_register) Instance_Register(N, V);
-
-	auto clo = xr_new<instance_create_closure>();
-	clo->pool = this;
-	clo->type = H.type;
-	auto task = fastdelegate::FastDelegate0<>(clo, &instance_create_async);
-	//Device.EnqueueAsync(
-	//	fastdelegate::FastDelegate0<>(clo, &instance_create_async),
-	//	fastdelegate::FastDelegate0<>(clo, &instance_create_async_on_completed)
-	//);
 
 	return V;
 }
@@ -319,6 +293,55 @@ dxRender_Visual* CModelPool::CreateChild(LPCSTR name, IReader* data)
 
 	dxRender_Visual* Model = bAllowChildrenDuplicate ? Instance_Duplicate(Base) : Base;
 	return Model;
+}
+
+dxRender_Visual* CModelPool::CreateThreadSafe(LPCSTR N)
+{
+	dxRender_Visual* V;
+	string_path fn;
+	string_path name;
+
+	// Add default ext if no ext at all
+	if (0 == strext(N)) strconcat(sizeof(name), name, N, ".ogf");
+	else xr_strcpy(name, sizeof(name), N);
+
+	// Load data from MESHES or LEVEL
+	if (!FS.exist(N))
+	{
+		if (!FS.exist(fn, "$level$", name))
+			if (!FS.exist(fn, "$game_meshes$", name))
+			{
+#ifdef _EDITOR
+				Msg("!Can't find model file '%s'.", name);
+				return 0;
+#else
+				Debug.fatal(DEBUG_INFO, "Can't find model file '%s'.", name);
+#endif
+			}
+	}
+	else
+	{
+		xr_strcpy(fn, N);
+	}
+
+	// Actual loading
+#ifdef DEBUG
+	if (bLogging)		Msg("- Uncached model loading: %s", fn);
+#endif // DEBUG
+
+	IReader* data = FS.r_open(fn);
+	ogf_header H;
+	data->r_chunk_safe(OGF_HEADER, &H, sizeof(H));
+	V = Instance_Create(H.type);
+//	V->Load(N, data, 0);
+	FS.r_close(data);
+	//g_pGamePersistent->RegisterModel(V);
+
+	//// Registration
+	//if (allow_register) Instance_Register(N, V);
+
+
+	return V;
 }
 
 extern BOOL ENGINE_API g_bRendering;

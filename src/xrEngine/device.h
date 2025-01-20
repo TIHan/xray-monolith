@@ -303,7 +303,7 @@ public:
 	{
 		if (swapAsync)
 		{
-			// back is being used, sp push to front
+			// back is being used, so push to front
 			seqFrontAsync.push_back(task);
 			seqFrontAsyncOnCompleted.push_back(onCompleted);
 		}
