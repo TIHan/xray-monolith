@@ -205,6 +205,11 @@ public:
 	CRegistrator<pureFrame> seqFrameMT;
 	CRegistrator<pureDeviceReset> seqDeviceReset;
 	xr_vector<fastdelegate::FastDelegate0<>> seqParallel;
+	volatile int swapAsync;
+	xr_vector<fastdelegate::FastDelegate0<>> seqFrontAsync;
+	xr_vector<fastdelegate::FastDelegate0<>> seqFrontAsyncOnCompleted;
+	xr_vector<fastdelegate::FastDelegate0<>> seqBackAsync;
+	xr_vector<fastdelegate::FastDelegate0<>> seqBackAsyncOnCompleted;
 
 	// Dependent classes
 	//CResourceManager* Resources;
@@ -294,6 +299,22 @@ public:
 	void Initialize(void);
 	void ShutDown(void);
 
+	void EnqueueAsync(const fastdelegate::FastDelegate0<> &task, const fastdelegate::FastDelegate0<>& onCompleted)
+	{
+		if (swapAsync)
+		{
+			// back is being used, sp push to front
+			seqFrontAsync.push_back(task);
+			seqFrontAsyncOnCompleted.push_back(onCompleted);
+		}
+		else
+		{
+			// front is being used, so push to back
+			seqBackAsync.push_back(task);
+			seqBackAsyncOnCompleted.push_back(onCompleted);
+		}
+	}
+
 public:
 	void time_factor(const float& time_factor)
 	{
@@ -322,6 +343,9 @@ public:
 		if (I != seqParallel.end())
 			seqParallel.erase(I);
 	}
+
+	xrCriticalSection mt_csAsyncEnter;
+	volatile BOOL mt_bIsAsyncRunning;
 
 	//AVO: elapsed famed counter (by alpet)
 	IC u32 frame_elapsed()

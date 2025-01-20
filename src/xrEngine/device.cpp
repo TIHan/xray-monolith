@@ -192,6 +192,39 @@ void mt_Thread(void* ptr)
 	}
 }
 
+void mt_AsyncThread(void* ptr)
+{
+	auto& device = *static_cast<CRenderDevice*>(ptr);
+	while (true)
+	{
+		// waiting for Device permission to execute
+		device.mt_csAsyncEnter.Enter();
+
+		if (device.mt_bMustExit)
+		{
+			device.mt_bMustExit = FALSE; // Important!!!
+			device.mt_csAsyncEnter.Leave(); // Important!!!
+			return;
+		}
+
+		xr_vector<fastdelegate::FastDelegate0<>> seq;
+		if (Device.swapAsync)
+		{
+			seq = device.seqBackAsync;
+		}
+		else
+		{
+			seq = device.seqFrontAsync;
+		}
+
+		for (u32 pit = 0; pit < seq.size(); pit++)
+			seq[pit]();
+		seq.clear_not_free();
+
+		Device.mt_bIsAsyncRunning = false;
+	}
+}
+
 #include "igame_level.h"
 
 void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_user_input)
@@ -420,6 +453,28 @@ void CRenderDevice::on_idle()
 		seqFrameMT.Process(rp_Frame);
 	}
 
+	if (!mt_bIsAsyncRunning)
+	{
+		xr_vector<fastdelegate::FastDelegate0<>> seqOnCompleted;
+		if (swapAsync)
+		{
+			seqOnCompleted = Device.seqBackAsyncOnCompleted;
+			swapAsync = 0; // use front
+		}
+		else
+		{
+			seqOnCompleted = Device.seqFrontAsyncOnCompleted;
+			swapAsync = 1; // use back
+		}
+
+		for (u32 pit = 0; pit < seqOnCompleted.size(); pit++)
+			seqOnCompleted[pit]();
+		seqOnCompleted.clear_not_free();
+
+		mt_bIsAsyncRunning = true;
+		mt_csAsyncEnter.Leave();
+	}
+
 #ifdef DEDICATED_SERVER
     u32 FrameEndTime = TimerGlobal.GetElapsed_ms();
     u32 FrameTime = (FrameEndTime - FrameStartTime);
@@ -488,9 +543,11 @@ void CRenderDevice::Run()
 	// InitializeCriticalSection (&mt_csEnter);
 	// InitializeCriticalSection (&mt_csLeave);
 	mt_csEnter.Enter();
+	mt_csAsyncEnter.Enter();
 	mt_bMustExit = FALSE;
 	thread_spawn(mt_FreezeThread, "Freeze detecting thread", 0, 0);
 	thread_spawn(mt_Thread, "X-RAY Secondary thread", 0, this);
+	thread_spawn(mt_AsyncThread, "X-RAY Async thread", 0, this);
 	// Message cycle
 	seqAppStart.Process(rp_AppStart);
 
@@ -499,6 +556,7 @@ void CRenderDevice::Run()
 	seqAppEnd.Process(rp_AppEnd);
 	// Stop Balance-Thread
 	mt_bMustExit = TRUE;
+	mt_csAsyncEnter.Leave();
 	mt_csEnter.Leave();
 	while (mt_bMustExit) Sleep(0);
 	// DeleteCriticalSection (&mt_csEnter);
