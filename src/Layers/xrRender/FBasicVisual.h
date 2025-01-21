@@ -60,6 +60,7 @@ public:
 	{
 	}; // LOD - Level Of Detail  [0..1], Ignored
 	virtual void Load(const char* N, IReader* data, u32 dwFlags);
+	virtual void LoadThreadSafe(const char* N, IReader* data, u32 dwFlags);
 	virtual void Release(); // Shared memory release
 	virtual void Copy(dxRender_Visual* from);
 

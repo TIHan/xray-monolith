@@ -100,7 +100,9 @@ private:
 public:
 	// Miscelaneous
 	void _ParseList(sh_list& dest, LPCSTR names);
+	IBlender* _GetBlenderCore(LPCSTR Name);
 	IBlender* _GetBlender(LPCSTR Name);
+	IBlender* _FindBlenderCore(LPCSTR Name);
 	IBlender* _FindBlender(LPCSTR Name);
 	void _GetMemoryUsage(u32& m_base, u32& c_base, u32& m_lmaps, u32& c_lmaps);
 	void _DumpMemoryUsage();
@@ -191,7 +193,9 @@ public:
 	SConstantList* _CreateConstantList(SConstantList& L);
 	void _DeleteConstantList(const SConstantList* L);
 
+	ShaderElement* _CreateElementCore(ShaderElement& L);
 	ShaderElement* _CreateElement(ShaderElement& L);
+	void _DeleteElementCore(const ShaderElement* L);
 	void _DeleteElement(const ShaderElement* L);
 
 	Shader* _cpp_Create(LPCSTR s_shader, LPCSTR s_textures = 0, LPCSTR s_constants = 0, LPCSTR s_matrices = 0);
@@ -217,6 +221,7 @@ public:
 	Shader* Create(LPCSTR s_shader = 0, LPCSTR s_textures = 0, LPCSTR s_constants = 0, LPCSTR s_matrices = 0);
 	Shader* Create(IBlender* B, LPCSTR s_shader = 0, LPCSTR s_textures = 0, LPCSTR s_constants = 0,
 	               LPCSTR s_matrices = 0);
+	void DeleteCore(const Shader* S);
 	void Delete(const Shader* S);
 
 	void RegisterConstantSetup(LPCSTR name, R_constant_setup* s)

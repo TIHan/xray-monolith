@@ -15,6 +15,8 @@
 #include "blenders\blender_recorder.h"
 #include <tbb\parallel_for_each.h>
 
+xrCriticalSection cs;
+
 //	Already defined in Texture.cpp
 void fix_texture_name(LPSTR fn);
 
@@ -46,7 +48,7 @@ BOOL reclaim(xr_vector<T*>& vec, const T* ptr)
 }
 
 //--------------------------------------------------------------------------------------------------------------
-IBlender* CResourceManager::_GetBlender(LPCSTR Name)
+IBlender* CResourceManager::_GetBlenderCore(LPCSTR Name)
 {
 	R_ASSERT(Name && Name[0]);
 
@@ -72,7 +74,15 @@ IBlender* CResourceManager::_GetBlender(LPCSTR Name)
 	else return I->second;
 }
 
-IBlender* CResourceManager::_FindBlender(LPCSTR Name)
+IBlender* CResourceManager::_GetBlender(LPCSTR Name)
+{
+	cs.Enter();
+	auto result = _GetBlenderCore(Name);
+	cs.Leave();
+	return result;
+}
+
+IBlender* CResourceManager::_FindBlenderCore(LPCSTR Name)
 {
 	if (!(Name && Name[0])) return 0;
 
@@ -82,8 +92,17 @@ IBlender* CResourceManager::_FindBlender(LPCSTR Name)
 	else return I->second;
 }
 
+IBlender* CResourceManager::_FindBlender(LPCSTR Name)
+{
+	cs.Enter();
+	auto result = _FindBlenderCore(Name);
+	cs.Leave();
+	return result;
+}
+
 void CResourceManager::ED_UpdateBlender(LPCSTR Name, IBlender* data)
 {
+	cs.Enter();
 	LPSTR N = LPSTR(Name);
 	map_Blender::iterator I = m_blenders.find(N);
 	if (I != m_blenders.end())
@@ -96,6 +115,7 @@ void CResourceManager::ED_UpdateBlender(LPCSTR Name, IBlender* data)
 	{
 		m_blenders.insert(mk_pair(xr_strdup(Name), data));
 	}
+	cs.Leave();
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -103,6 +123,7 @@ void CResourceManager::ED_UpdateBlender(LPCSTR Name, IBlender* data)
 //////////////////////////////////////////////////////////////////////
 void CResourceManager::_ParseList(sh_list& dest, LPCSTR names)
 {
+	cs.Enter();
 	if (0 == names || 0 == names[0])
 		names = "$null";
 
@@ -139,9 +160,10 @@ void CResourceManager::_ParseList(sh_list& dest, LPCSTR names)
 		//. andy		if (strext(N.begin())) *strext(N.begin())=0;
 		dest.push_back(N.begin());
 	}
+	cs.Leave();
 }
 
-ShaderElement* CResourceManager::_CreateElement(ShaderElement& S)
+ShaderElement* CResourceManager::_CreateElementCore(ShaderElement& S)
 {
 	if (S.passes.empty()) return 0;
 
@@ -156,16 +178,32 @@ ShaderElement* CResourceManager::_CreateElement(ShaderElement& S)
 	return N;
 }
 
-void CResourceManager::_DeleteElement(const ShaderElement* S)
+ShaderElement* CResourceManager::_CreateElement(ShaderElement& S)
+{
+	cs.Enter();
+	auto result = _CreateElementCore(S);
+	cs.Leave();
+	return result;
+}
+
+void CResourceManager::_DeleteElementCore(const ShaderElement* S)
 {
 	if (0 == (S->dwFlags & xr_resource_flagged::RF_REGISTERED)) return;
 	if (reclaim(v_elements, S)) return;
 	Msg("! ERROR: Failed to find compiled 'shader-element'");
 }
 
+void CResourceManager::_DeleteElement(const ShaderElement* S)
+{
+	cs.Enter();
+	_DeleteElementCore(S);
+	cs.Leave();
+}
+
 Shader* CResourceManager::_cpp_Create(IBlender* B, LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_constants,
                                       LPCSTR s_matrices)
 {
+	cs.Enter();
 	CBlender_Compile C;
 	Shader S;
 
@@ -269,6 +307,7 @@ Shader* CResourceManager::_cpp_Create(IBlender* B, LPCSTR s_shader, LPCSTR s_tex
 	Shader* N = xr_new<Shader>(S);
 	N->dwFlags |= xr_resource_flagged::RF_REGISTERED;
 	v_shaders.push_back(N);
+	cs.Leave();
 	return N;
 }
 
@@ -327,7 +366,12 @@ Shader* CResourceManager::Create(LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_co
 		//	TODO: DX10: When all shaders are ready switch to common path
 #if defined(USE_DX10) || defined(USE_DX11)
 		if (_lua_HasShader(s_shader))
-			return _lua_Create(s_shader, s_textures);
+		{
+			cs.Enter();
+			auto result = _lua_Create(s_shader, s_textures);
+			cs.Leave();
+			return result;
+		}
 		else
 		{
 			Shader* pShader = _cpp_Create(s_shader, s_textures, s_constants, s_matrices);
@@ -336,7 +380,12 @@ Shader* CResourceManager::Create(LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_co
 			else
 			{
 				if (_lua_HasShader("stub_default"))
-					return _lua_Create("stub_default", s_textures);
+				{
+					cs.Enter();
+					auto result = _lua_Create("stub_default", s_textures);
+					cs.Leave();
+					return result;
+				}
 				else
 				{
 					FATAL("Can't find stub_default.s");
@@ -363,16 +412,25 @@ Shader* CResourceManager::Create(LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_co
 	//#endif
 }
 
-void CResourceManager::Delete(const Shader* S)
+void CResourceManager::DeleteCore(const Shader* S)
 {
 	if (0 == (S->dwFlags & xr_resource_flagged::RF_REGISTERED)) return;
 	if (reclaim(v_shaders, S)) return;
 	Msg("! ERROR: Failed to find complete shader");
 }
 
+void CResourceManager::Delete(const Shader* S)
+{
+	cs.Enter();
+	DeleteCore(S);
+	cs.Leave();
+}
+
 void CResourceManager::DeferredUpload()
 {
 	if (!RDEVICE.b_is_Ready) return;
+
+	cs.Enter();
 
 	Msg("CResourceManager::DeferredUpload -> START, size = %d", m_textures.size());
 
@@ -382,6 +440,7 @@ void CResourceManager::DeferredUpload()
 	tbb::parallel_for_each(m_textures, [&](auto m_tex) { m_tex.second->Load(); });
 
 	Msg("texture loading time: %d", timer.GetElapsed_ms());
+	cs.Leave();
 }
 
 void CResourceManager::DeferredUnload()
@@ -389,7 +448,9 @@ void CResourceManager::DeferredUnload()
 	if (!RDEVICE.b_is_Ready)
 		return;
 
+	cs.Enter();
 	tbb::parallel_for_each(m_textures, [&](auto m_tex) { m_tex.second->Unload(); });
+	cs.Leave();
 }
 
 #ifdef _EDITOR
@@ -414,6 +475,7 @@ void	CResourceManager::ED_UpdateTextures(AStringVec* names)
 
 void CResourceManager::_GetMemoryUsage(u32& m_base, u32& c_base, u32& m_lmaps, u32& c_lmaps)
 {
+	cs.Enter();
 	m_base = c_base = m_lmaps = c_lmaps = 0;
 
 	map_Texture::iterator I = m_textures.begin();
@@ -432,10 +494,12 @@ void CResourceManager::_GetMemoryUsage(u32& m_base, u32& c_base, u32& m_lmaps, u
 			m_base += m;
 		}
 	}
+	cs.Leave();
 }
 
 void CResourceManager::_DumpMemoryUsage()
 {
+	cs.Enter();
 	xr_multimap<u32, std::pair<u32, shared_str>> mtex;
 
 	// sort
@@ -457,6 +521,7 @@ void CResourceManager::_DumpMemoryUsage()
 		for (; I != E; I++)
 			Msg("* %4.1f : [%4d] %s", float(I->first) / 1024.f, I->second.first, I->second.second.c_str());
 	}
+	cs.Leave();
 }
 
 void CResourceManager::Evict()
