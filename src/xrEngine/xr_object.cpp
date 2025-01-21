@@ -97,6 +97,8 @@ public:
 		//IRenderVisual* old_v = obj->renderable.visual;
 		//IRenderVisual* new_v = Result;
 
+		//Render->model_PersistentRegister(Name.c_str(), new_v);
+
 		//IKinematics* old_k = old_v ? old_v->dcast_PKinematics() : NULL;
 		//IKinematics* new_k = new_v->dcast_PKinematics();
 
@@ -116,7 +118,10 @@ public:
 
 		//::Render->model_Delete(old_v);
 
+		//obj->OnChangeVisual();
+
 		::Render->model_Delete(Result);
+
 		instance_create_closure* clo = this;
 		xr_delete(clo);
 	}

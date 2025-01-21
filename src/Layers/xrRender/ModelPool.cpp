@@ -168,6 +168,16 @@ void CModelPool::Instance_Register(LPCSTR N, dxRender_Visual* V)
 	Models.push_back(M);
 }
 
+void CModelPool::Instance_PersistentRegister(LPCSTR N, dxRender_Visual* V)
+{
+	g_pGamePersistent->RegisterModel(V);
+
+	// Registration
+	ModelDef M;
+	M.name = N;
+	M.model = V;
+	Models.push_back(M);
+}
 
 void CModelPool::Destroy()
 {
@@ -333,13 +343,8 @@ dxRender_Visual* CModelPool::CreateThreadSafe(LPCSTR N)
 	ogf_header H;
 	data->r_chunk_safe(OGF_HEADER, &H, sizeof(H));
 	V = Instance_Create(H.type);
-//	V->Load(N, data, 0);
+	V->Load(N, data, 0);
 	FS.r_close(data);
-	//g_pGamePersistent->RegisterModel(V);
-
-	//// Registration
-	//if (allow_register) Instance_Register(N, V);
-
 
 	return V;
 }
