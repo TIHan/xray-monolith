@@ -906,6 +906,94 @@ void CActor::ChangeVisual(shared_str NewVisual)
 	Visual()->dcast_PKinematics()->CalculateBones(TRUE);
 };
 
+class instance_create_closure
+{
+public:
+	shared_str Name;
+	CActor* obj;
+	IRenderVisual* Result;
+
+	instance_create_closure()
+	{
+		Name = nullptr;
+		obj = nullptr;
+		Result = nullptr;
+	}
+
+	~instance_create_closure()
+	{
+	}
+
+	void instance_create_async()
+	{
+		Msg("Loading async '%s'", Name.c_str());
+	//	Result = Render->model_CreateThreadSafe(Name.c_str());
+	}
+
+	void instance_create_async_on_completed()
+	{
+		Msg("Completed async '%s'", Name.c_str());
+
+		//IRenderVisual* old_v = obj->renderable.visual;
+		//IRenderVisual* new_v = Result;
+
+		//Render->model_PersistentRegister(Name.c_str(), new_v);
+
+		//IKinematics* old_k = old_v ? old_v->dcast_PKinematics() : NULL;
+		//IKinematics* new_k = new_v->dcast_PKinematics();
+
+		///*
+		//if(old_k && new_k){
+		//new_k->Update_Callback = old_k->Update_Callback;
+		//new_k->Update_Callback_Param = old_k->Update_Callback_Param;
+		//}
+		//*/
+		//if (old_k && new_k)
+		//{
+		//	new_k->SetUpdateCallback(old_k->GetUpdateCallback());
+		//	new_k->SetUpdateCallbackParam(old_k->GetUpdateCallbackParam());
+		//}
+
+		//obj->renderable.visual = new_v;
+
+		//::Render->model_Delete(old_v);
+
+		//obj->OnChangeVisual();
+
+		//::Render->model_Delete(Result);
+
+		obj->m_bAsyncLoaded = true;
+
+	//	obj->ChangeVisual(Name);
+
+		instance_create_closure* clo = this;
+		xr_delete(clo);
+	}
+};
+
+//#include "SkeletonCustom.h"
+void CActor::cNameVisual_set(shared_str N)
+{
+	if (!m_bAsyncLoaded)
+	{
+		inherited::cNameVisual_set("actors\\stalker_hero\\stalker_hero_1");
+		if (*N)
+		{
+			auto clo = xr_new<instance_create_closure>();
+			clo->Name = N;
+			clo->obj = this;
+			Device.EnqueueAsync(
+				fastdelegate::FastDelegate0<>(clo, &instance_create_closure::instance_create_async),
+				fastdelegate::FastDelegate0<>(clo, &instance_create_closure::instance_create_async_on_completed)
+			);
+		}
+	}
+	else
+	{
+		inherited::cNameVisual_set(N);
+	}
+}
+
 void ACTOR_DEFS::net_update::lerp(ACTOR_DEFS::net_update& A, ACTOR_DEFS::net_update& B, float f)
 {
 	//	float invf		= 1.f-f;

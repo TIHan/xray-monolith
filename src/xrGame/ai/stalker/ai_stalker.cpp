@@ -79,6 +79,7 @@ CAI_Stalker::CAI_Stalker() :
 	m_take_items_enabled(true),
 	m_death_sound_enabled(true)
 {
+	m_bAsyncLoaded = false;
 	m_pPhysics_support = NULL;
 	m_animation_manager = NULL;
 	m_brain = NULL;
@@ -1577,3 +1578,113 @@ void CAI_Stalker::ChangeVisual(shared_str NewVisual)
 	Visual()->dcast_PKinematics()->CalculateBones_Invalidate();
 	Visual()->dcast_PKinematics()->CalculateBones(TRUE);
 };
+
+extern int g_async_sleep;
+
+class instance_create_closure2
+{
+public:
+	shared_str Name;
+	CAI_Stalker* stalker;
+	IRenderVisual* Result;
+
+	instance_create_closure2()
+	{
+		Name = nullptr;
+		stalker = nullptr;
+		Result = nullptr;
+	}
+
+	~instance_create_closure2()
+	{
+	}
+
+	void instance_create_async()
+	{
+		Msg("Loading async '%s'", Name.c_str());
+		Result = Render->model_CreateThreadSafe(Name.c_str());
+		Sleep(g_async_sleep);
+	}
+
+	void instance_create_async_on_completed()
+	{
+		Msg("Completed async '%s'", Name.c_str());
+
+		//IRenderVisual* old_v = obj->renderable.visual;
+		IRenderVisual* new_v = Result;
+
+		Render->model_PersistentRegister(Name.c_str(), new_v);
+
+		//IKinematics* old_k = old_v ? old_v->dcast_PKinematics() : NULL;
+		//IKinematics* new_k = new_v->dcast_PKinematics();
+
+		///*
+		//if(old_k && new_k){
+		//new_k->Update_Callback = old_k->Update_Callback;
+		//new_k->Update_Callback_Param = old_k->Update_Callback_Param;
+		//}
+		//*/
+		//if (old_k && new_k)
+		//{
+		//	new_k->SetUpdateCallback(old_k->GetUpdateCallback());
+		//	new_k->SetUpdateCallbackParam(old_k->GetUpdateCallbackParam());
+		//}
+
+		//obj->renderable.visual = new_v;
+
+		//::Render->model_Delete(old_v);
+
+		//obj->OnChangeVisual();
+
+		//::Render->model_Delete(Result);
+
+		stalker->m_bAsyncLoaded = true;
+
+		stalker->ChangeVisual(Name);
+
+		IKinematicsAnimated* V = smart_cast<IKinematicsAnimated*>(stalker->Visual());
+		if (V)
+		{
+			if (!stalker->g_Alive())
+			{
+				stalker->m_pPhysics_support->in_Die(false);
+			}
+			else
+			{
+				stalker->CStepManager::reload(stalker->cNameSect().c_str());
+			}
+
+			stalker->CDamageManager::reload(*stalker->cNameSect(), "damage", pSettings);
+			stalker->ResetBoneProtections(NULL, NULL);
+			stalker->reattach_items();
+			stalker->m_pPhysics_support->in_ChangeVisual();
+			stalker->animation().reload();
+		}
+
+		instance_create_closure2* clo = this;
+		xr_delete(clo);
+	}
+};
+
+//#include "SkeletonCustom.h"
+void CAI_Stalker::cNameVisual_set(shared_str N)
+{
+	if (!m_bAsyncLoaded)
+	{
+		inherited::cNameVisual_set("actors\\stalker_hero\\stalker_hero_1");
+		if (*N)
+		{
+			auto clo = xr_new<instance_create_closure2>();
+			clo->Name = N;
+			clo->stalker = this;
+			Device.EnqueueAsync(
+				fastdelegate::FastDelegate0<>(clo, &instance_create_closure2::instance_create_async),
+				fastdelegate::FastDelegate0<>(clo, &instance_create_closure2::instance_create_async_on_completed)
+			);
+		}
+	}
+	else
+	{
+		inherited::cNameVisual_set(N);
+	}
+}

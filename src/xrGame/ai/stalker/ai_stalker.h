@@ -155,6 +155,7 @@ public:
 	CCharacterPhysicsSupport* m_pPhysics_support;
 
 public:
+	BOOL m_bAsyncLoaded;
 	bool m_wounded;
 
 	// demonized: add enabling pathfinding and damage by anomalies flags
@@ -223,6 +224,7 @@ public:
 	virtual float Radius() const;
 
 	virtual void ChangeVisual(shared_str NewVisual);
+	virtual void cNameVisual_set(shared_str N);
 
 #ifdef DEBUG
 	virtual void						OnHUDDraw							(CCustomHUD* hud);

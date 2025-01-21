@@ -156,7 +156,7 @@ public:
 	ICF LPCSTR cNameSect_str() const { return NameSection.c_str(); }
 	void cNameSect_set(shared_str N);
 	ICF shared_str cNameVisual() const { return NameVisual; }
-	void cNameVisual_set(shared_str N);
+	virtual void cNameVisual_set(shared_str N);
 	virtual shared_str shedule_Name() const { return cName(); };
 
 	// Properties

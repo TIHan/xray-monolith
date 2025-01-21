@@ -85,6 +85,7 @@ public:
 // demonized: First Person Death
 public:
 	CFPCamEffector* m_FPCam;
+	BOOL m_bAsyncLoaded;
 
 public:
 	void initFPCam();
@@ -649,6 +650,7 @@ public:
 
 	virtual void ChangeVisual(shared_str NewVisual);
 	virtual void OnChangeVisual();
+	virtual void cNameVisual_set(shared_str N);
 
 	virtual void RenderIndicator(Fvector dpos, float r1, float r2, const ui_shader& IndShader);
 	virtual void RenderText(LPCSTR Text, Fvector dpos, float* pdup, u32 color);
